@@ -4,7 +4,8 @@ use serde::Deserialize;
 use std::collections::HashMap;
 
 use reqwest::{Error,header::HeaderValue};
-use crate::graphe::elements::{TNode, distance_haversine};
+use crate::graphe::elements::TNode;
+use crate::routing::distances::distance_haversine;
 
 
 #[derive(Deserialize, Debug)]

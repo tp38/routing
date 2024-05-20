@@ -1,11 +1,22 @@
 use std::cmp::Ordering;
-use std::collections::{HashMap,BinaryHeap};
+use std::collections::{HashMap,BTreeMap,BinaryHeap};
+use crate::graphe::elements::Edge;
 
 #[derive(Copy, Clone)]
-struct State {
+pub struct State {
     cost: f64,
     position: i64,
 }
+
+// impl State {
+//     pub fn cost(&self) -> f64 {
+//         self.cost
+//     }
+//
+//     pub fn position(&self) -> i64 {
+//         self.position
+//     }
+// }
 
 impl PartialEq for State {
     fn eq(&self, other: &Self) -> bool {
@@ -41,22 +52,13 @@ impl PartialOrd for State {
     }
 }
 
-// Each node is represented as a `usize`, for a shorter implementation.
-#[derive(Debug,Clone)]
-pub struct Edge {
-    pub end_node: i64,
-    pub cost: f64,
-}
-
-
-
 // Dijkstra's shortest path algorithm.
 
 // Start at `start` and use `dist` to track the current shortest distance
 // to each node. This implementation isn't memory-efficient as it may leave duplicate
 // nodes in the queue. It also uses `usize::MAX` as a sentinel value,
 // for a simpler implementation.
-pub fn shortest_path(adj_list: &HashMap<i64, Vec<Edge>>, start: i64, goal: i64) -> Option<f64> {
+pub fn simple_shortest_path(adj_list: &HashMap<i64, Vec<Edge>>, start: i64, goal: i64) -> Option<f64> {
     // dist[node] = current shortest distance from `start` to `node`
     let mut dist: HashMap<i64,f64> = HashMap::new();
     for ( k, _v ) in adj_list.iter() { dist.insert( *k, f64::MAX ); }
@@ -70,7 +72,7 @@ pub fn shortest_path(adj_list: &HashMap<i64, Vec<Edge>>, start: i64, goal: i64) 
             heap.push(State { cost: 0.0, position: start });
 
             // Examine the frontier with lower cost nodes first (min-heap)
-            while let Some(State { cost, position }) = heap.pop() {
+            while let Some( State { cost, position } ) = heap.pop() {
                 // Alternatively we could have continued to find all shortest paths
                 if position == goal { return Some(cost); }
 
@@ -80,7 +82,7 @@ pub fn shortest_path(adj_list: &HashMap<i64, Vec<Edge>>, start: i64, goal: i64) 
                 // For each node we can reach, see if we can find a way with
                 // a lower cost going through this node
                 for edge in adj_list.get( &position ).unwrap() {
-                    let next = State { cost: cost + edge.cost, position: edge.end_node };
+                    let next = State { cost: cost + edge.distance, position: edge.node };
 
                     // If so, add it to the frontier and continue
                     match dist.get_mut( &next.position ) {
@@ -103,6 +105,105 @@ pub fn shortest_path(adj_list: &HashMap<i64, Vec<Edge>>, start: i64, goal: i64) 
     // Goal not reachable
     None
 }
+
+pub struct Seg {
+    dist: f64,
+    old: i64
+}
+
+impl Seg {
+    pub fn old(&self) -> i64 {
+        self.old
+    }
+
+    pub fn dist(&self) -> f64 {
+        self.dist
+    }
+
+    pub fn set_dist(&mut self, n: f64) {
+        self.dist = n;
+    }
+
+    pub fn set_old(&mut self, o: i64) {
+        self.old = o;
+    }
+}
+
+
+// Dijkstra's shortest path algorithm.
+// with path return
+pub fn shortest_path(mode: &str, adj_list: &HashMap<i64, Vec<Edge>>, start: i64, goal: i64) -> Option<BTreeMap<i64,i64>> {
+    // dist[node] = current shortest distance from `start` to `node`
+    let mut dist: HashMap<i64,Seg> = HashMap::new();
+    for ( k, _v ) in adj_list.iter() { dist.insert( *k, Seg { dist: f64::MAX, old: i64::MAX } ); }
+
+    let mut heap = BinaryHeap::new();
+
+    // We're at `start`, with a zero cost
+    match dist.get_mut( &start ) {
+        Some(n) => {
+            *n = Seg {dist: 0.0, old: 0};
+            heap.push( State { cost: 0.0, position: start } );
+
+            // Examine the frontier with lower cost nodes first (min-heap)
+            while let Some( State { cost, position } ) = heap.pop() {
+                if position == goal {
+                    let mut nodes: BTreeMap<i64,i64> = BTreeMap::new();
+                    let mut cur = goal;
+                    loop{
+                        match dist.get(&cur) {
+                            Some(s) => {
+                                if s.old() == 0 {
+                                    nodes.entry( (s.dist() * 100.0) as i64 )
+                                        .and_modify(|c| *c = cur )
+                                        .or_insert( cur );
+                                    break;
+                                }
+                                else {
+                                    nodes.entry( (s.dist() * 100.0) as i64 )
+                                        .and_modify(|c| *c = cur )
+                                        .or_insert( cur );
+                                    cur = s.old();
+                                }
+                            },
+                            None => { panic!( "must be in db" ); }
+                        }
+                    }
+                    return Some(nodes);
+                }
+
+                // Important as we may have already found a better way
+                if cost > dist.get( &position ).unwrap().dist() { continue; }
+
+                // For each node we can reach, see if we can find a way with
+                // a lower cost going through this node
+                for edge in adj_list.get( &position ).unwrap() {
+                    let c = if mode == "time" { edge.time } else { edge.distance };
+                    let next = State { cost: cost + c, position: edge.node };
+
+                    // If so, add it to the frontier and continue
+                    match dist.get_mut( &next.position ) {
+                        Some(n) => {
+                            if next.cost < n.dist() {
+                                heap.push(next);
+                                // Relaxation, we have now found a better way
+                                n.set_dist( next.cost );
+                                n.set_old( position )
+                            }
+                        },
+                        None => {
+                            println!("{:?}", edge );
+                        }
+                    }
+                }
+            }
+        },
+        None => { println!( "start node must be in the graph" ); },
+    }
+    // Goal not reachable
+    None
+}
+
 
 #[cfg(test)]
 mod dijkstra_tests {
@@ -135,26 +236,26 @@ mod dijkstra_tests {
         // let graph = vec![
 
         let mut graph: HashMap<i64,Vec<Edge>> = HashMap::new();
-        graph.insert(10,
-                vec![Edge { end_node: 12, cost: 10.0 },
-                     Edge { end_node: 11, cost: 1.0 }] );
-        graph.insert(11,
-                vec![Edge { end_node: 13, cost: 2.0 }] );
-        graph.insert(12,
-                vec![Edge { end_node: 11, cost: 1.0 },
-                     Edge { end_node: 13, cost: 3.0 },
-                     Edge { end_node: 14, cost: 1.0 }] );
-        graph.insert(13,
-                vec![Edge { end_node: 10, cost: 7.0 },
-                     Edge { end_node: 14, cost: 2.0 }] );
-        graph.insert(14,
+        graph.insert(0,
+                vec![Edge { node: 2, cost: 10.0 },
+                     Edge { node: 1, cost: 1.0 }] );
+        graph.insert(1,
+                vec![Edge { node: 3, cost: 2.0 }] );
+        graph.insert(2,
+                vec![Edge { node: 1, cost: 1.0 },
+                     Edge { node: 3, cost: 3.0 },
+                     Edge { node: 4, cost: 1.0 }] );
+        graph.insert(3,
+                vec![Edge { node: 0, cost: 7.0 },
+                     Edge { node: 4, cost: 2.0 }] );
+        graph.insert(4,
                 vec![] );
 
-        assert_eq!(shortest_path(&graph, 10, 11), Some(1.0));
-        assert_eq!(shortest_path(&graph, 10, 13), Some(3.0));
-        assert_eq!(shortest_path(&graph, 13, 10), Some(7.0));
-        assert_eq!(shortest_path(&graph, 10, 14), Some(5.0));
-        assert_eq!(shortest_path(&graph, 15, 12), None);
-        assert_eq!(shortest_path(&graph, 14, 10), None);
+        assert_eq!(simple_shortest_path(&graph, 0, 1), Some(1.0));
+        assert_eq!(simple_shortest_path(&graph, 0, 3), Some(3.0));
+        assert_eq!(simple_shortest_path(&graph, 3, 0), Some(7.0));
+        assert_eq!(simple_shortest_path(&graph, 0, 4), Some(5.0));
+        assert_eq!(simple_shortest_path(&graph, 5, 2), None);
+        assert_eq!(simple_shortest_path(&graph, 4, 0), None);
     }
 }

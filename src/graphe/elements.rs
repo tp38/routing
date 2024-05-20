@@ -1,55 +1,6 @@
 use super::*;
-use crate::routing::dijkstra::Edge;
 
-use std::fmt;
 use ansi_term::Colour;
-
-///
-/// calcul la distance entre 2 jeu de coordonnées lat, lon en utilisant pythagore
-///
-pub fn distance_pythagore( xa: f64, ya: f64, xb: f64, yb:f64 ) -> f64 {
-    let x = ( xb - xa )*( ( ya + yb )/2.0 ).cos();
-    let y = yb - ya;
-    let z = ( x.sqrt() + y.sqrt() ).powf(0.5);
-    let d = 1.852 * 60.0 * z;
-    d
-}
-
-///
-/// calcul la distance entre 2 jeu de coordonnées lat, lon suivant la loi des sinus
-///
-pub fn distance_sinus( xd: f64, yd: f64, zd: f64, td:f64 ) -> f64 {
-    use core::f64::consts::PI;
-
-    // conversion degrés -> radians
-    let x = xd / 180.0 * PI;
-    let y = yd / 180.0 * PI;
-    let z = zd / 180.0 * PI;
-    let t = td / 180.0 * PI;
-
-    let d: f64 = 1000.0 * 6371.0*(z.sin()*x.sin() + z.cos()*x.cos()*(y-t).cos() ).acos();
-
-    d
-}
-
-///
-/// calcul la distance entre 2 jeu de coordonnées lat, lon suivant la formule de haversine
-///
-pub fn distance_haversine( xd: f64, yd: f64, zd: f64, td:f64 ) -> f64 {
-    use core::f64::consts::PI;
-
-    // conversion degrés -> radians
-    let x = xd / 180.0 * PI;
-    let y = yd / 180.0 * PI;
-    let z = zd / 180.0 * PI;
-    let t = td / 180.0 * PI;
-
-    // formule de haversine
-    let a: f64 = ((x-z)/2.0).sin().powi(2) + z.cos()*x.cos()*((y-t)/2.0).sin().powi(2);
-    let c: f64 = 2.0*(a.sqrt()/(1.0-a).sqrt()).atan();
-    let d: f64 = 1000.0 * 6371.0 * c;
-    d
-}
 
 
 #[derive(Debug,Clone,Copy,PartialEq)]
@@ -58,6 +9,15 @@ pub enum TNodeType {
     EndNode,
     MiddleNode,
 }
+
+#[derive(Debug,Clone)]
+pub struct Edge {
+    pub node: i64,
+    pub distance: f64,
+    pub time: f64,
+    pub cost: f64,
+}
+
 
 
 #[derive(Debug, Clone)]
@@ -68,6 +28,8 @@ pub struct TNode {
     lon: f64,
     #[doc(hidden)]
     tags: HashMap<String, String>,
+    #[doc(hidden)]
+    ways: Vec<i64>,
     #[doc(hidden)]
     r#type: TNodeType,
 }
@@ -82,7 +44,7 @@ impl TNode {
     pub fn new( lat: f64, lon: f64,  t: HashMap<String,String> ) -> Self {
         let mut tags = HashMap::new();
         for (k, v) in t.iter() { tags.insert( k.to_string(), v.to_string() ); }
-        Self { lat: lat, lon: lon, tags: tags, r#type: TNodeType::UnUsed }
+        Self { lat: lat, lon: lon, tags: tags, r#type: TNodeType::UnUsed, ways: Vec::new() }
     }
 
     ///
@@ -91,7 +53,7 @@ impl TNode {
     pub fn from( dn: DenseNode ) -> Self {
         let mut tags = HashMap::new();
         for (k, v) in dn.tags() { tags.insert( k.to_string(), v.to_string() ); }
-        Self { lat: dn.lat(), lon: dn.lon(), tags: tags, r#type: TNodeType::UnUsed  }
+        Self { lat: dn.lat(), lon: dn.lon(), tags: tags, r#type: TNodeType::UnUsed, ways: Vec::new()  }
     }
 
     ///
@@ -136,20 +98,43 @@ impl TNode {
         self.r#type = n;
         self.r#type
     }
+
+    ///
+    /// ajout d'un wayid
+    ///
+    pub fn add_wayid(&mut self, w: i64 ) {
+        self.ways.push( w );
+    }
+
+
+    ///
+    /// récuperation du tableu des wayid
+    ///
+    pub fn ways(&self) -> &Vec<i64> {
+        &self.ways
+    }
 }
+
+
 
 impl fmt::Display for TNode {
     fn fmt(&self, f: &mut fmt::Formatter ) -> fmt::Result {
-        write!( f, "\tcoords : ({} , {}) :",
+        write!( f, "\tcoords : ({} , {}) :\n",
             Colour::Green.paint( self.lat.to_string() ),
             Colour::Green.paint( self.lon.to_string() ) ).unwrap();
         if self.tags.len() > 0 {
-            write!(f, "\n\ttags :" ).unwrap();
+            write!(f, "\ttags : \n" ).unwrap();
             for (k, v) in self.tags() {
-                write!( f, "\t{} => {}\n", k, v).unwrap();
+                write!( f, "\t\t{} => {}\n", k, v).unwrap();
             }
         }
-        write!(f, "")
+        if self.ways.len() > 0 {
+            write!(f, "\tways :" ).unwrap();
+            for w in self.ways() {
+                write!( f, " {}", w).unwrap();
+            }
+        }
+        write!(f, "\n")
     }
 }
 
@@ -306,7 +291,29 @@ impl fmt::Display for TWay {
             write!( f, "\n\ttags :\n" ).unwrap();
             for (k, v) in self.tags() {
                 write!( f, "\t\t{} => {}\n", k, v).unwrap();
-            }
+            }// pub struct Seg {
+//     dist: f64,
+//     old: i64
+// }
+//
+// impl Seg {
+//     pub fn old(&self) -> i64 {
+//         self.old
+//     }
+//
+//     pub fn dist(&self) -> f64 {
+//         self.dist
+//     }
+//
+//     pub fn set_dist(&mut self, n: f64) {
+//         self.dist = n;
+//     }
+
+//     pub fn set_old(&mut self, o: i64) {
+//         self.old = o;
+//     }
+// }
+
         }
         write!(f, "")
     }
@@ -374,118 +381,6 @@ mod tway_tests {
             assert_eq!( None, n.tags().get( &"road".to_string() ) );
             assert_eq!( 160.5895459714768, n.len() );
         }
-    }
-
-}
-
-pub struct Graph {
-    filename: String,
-    pub tnodes: HashMap<i64, TNode>,
-    pub tways: HashMap<i64, TWay>,
-}
-
-
-impl Graph {
-    ///
-    /// create new graph from tnodes and tways collections
-    ///
-    pub fn new( f: String, ip: HashMap<i64, TNode>, ib: HashMap<i64, TWay> ) -> Self {
-        Self { filename: f, tnodes: ip, tways: ib }
-    }
-
-    ///
-    /// retain only tnode that are used by tways
-    ///
-    pub fn init(&mut self) {
-        for ( _i, e ) in self.tways.iter() {
-            let mut count: usize = 0;
-            let mut lastid: &i64 = &0;
-            for n in e.refs.iter() {
-                lastid = n;
-                if count == 0 { self.tnodes.get_mut(lastid).expect("n must be in hashmap").set_type( TNodeType::EndNode ); }
-                else { self.tnodes.get_mut(lastid).expect("n must be in hashmap").set_type( TNodeType::MiddleNode ); }
-                count += 1;
-            }
-            self.tnodes.get_mut(lastid).expect("n must be in hashmap").set_type( TNodeType::EndNode );
-        }
-        self.tnodes.retain( |_k, v| v.get_type() != TNodeType::UnUsed );
-    }
-
-    ///
-    /// make a directed graph that can be used by Dijkstra shortest_path function (see dijkstra.rs)
-    ///
-    pub fn get_directed(&self) -> HashMap<i64,Vec<Edge>> {
-        let mut graph: HashMap<i64,Vec<Edge>> = HashMap::new();
-
-        for (_k, w) in self.tways.iter() {
-            // pour chacun des segments composant la voie (way)
-            for i in 1..w.refs.len() {
-                // les id des noeuds
-                let start_idx = w.refs[i-1];
-                let end_idx = w.refs[i];
-
-                // les datas associées
-                let start = self.tnodes.get( &start_idx ).expect( "start node must exist in db ... ");
-                let end = self.tnodes.get( &end_idx ).expect( "end node must exist in db ... ");
-
-                // calcul de la distance entre les noeuds
-                // let d = distance_pythagore(  start.lat(), start.lon(), end.lat(), end.lon() );
-                let d = distance_sinus( start.lat(), start.lon(), end.lat(), end.lon() );
-                // let d = distance_haversine( start.lat(), start.lon(), end.lat(), end.lon() );
-
-                // on crée un arc vers le nodeid de fin et comprenant la distance calculée
-                let normal = Edge{ end_node: end_idx, cost: d };
-                match graph.get_mut( &start_idx ) {
-                    // l'entrée existe : on reajoute à la liste des arcs du noeud considéré
-                    Some(v) => { v.push( normal ); },
-                    // l'entrée n'existe pas : on ajoute le node avec une nouvelle liste
-                    None => { graph.insert( start_idx, vec![ normal ] ); },
-                };
-                // on traite les voies a double sens en enregistrant l'arc contraire
-                if ! w.oneway() {
-                    let reverse = Edge{ end_node: start_idx, cost: d };
-                    match graph.get_mut( &end_idx ) {
-                        Some(v) => { v.push( reverse ); },
-                        None => { graph.insert( end_idx, vec![ reverse ] ); },
-                    };
-                }
-            }
-
-        }
-        graph
-    }
-
-}
-
-///
-/// display some info on graph
-///
-impl fmt::Display for Graph {
-    fn fmt(&self, f: &mut fmt::Formatter ) -> fmt::Result {
-        let mut infos: HashMap<String,usize> = HashMap::new();
-        for ( _i, w ) in self.tways.iter() {
-            for ( k, v ) in w.tags().iter() {
-                if k == "highway" {
-                    match infos.remove( v ) {
-                        Some(ways) => {
-                            let nw = ways + 1;
-                            infos.insert( v.to_string(), nw );
-                        },
-                        None => {
-                            infos.insert( v.to_string(), 1 );
-                        },
-                    }
-                }
-            }
-        }
-
-        write!( f, "file : {}\n\ttways : {} , tnodes : {}\n",
-            self.filename, self.tways.len(), self.tnodes.len() ).unwrap();
-        write!( f, "graph : \n\ttways are :\n" ).unwrap();
-        for ( k, v ) in &infos {
-            write!( f, "\t{:20} => {:>7}\n", k, v ).unwrap();
-        }
-        write!(f, "")
     }
 
 }

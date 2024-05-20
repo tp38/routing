@@ -1,23 +1,25 @@
 use super::*;
 
 use osmpbf::{ElementReader, Element};
-use crate::graphe::elements::{TNode, TWay, Graph};
+use crate::graphe::Graph;
+use crate::graphe::elements::{TNode, TWay};
 
 fn register_tnode( dne: DenseNode, tnodes: &mut HashMap<i64, TNode> ) {
     let p = TNode::from( dne.clone() );
     tnodes.insert( dne.id(), p );
 }
 
-fn register_tway( we: Way, tways: &mut HashMap<i64, TWay>, tnodes: &HashMap<i64, TNode>  ) {
+fn register_tway( we: Way, tways: &mut HashMap<i64, TWay>, tnodes: &mut HashMap<i64, TNode>  ) {
     let mut routable = false;
     let mut accessible = true;
     for (k, v) in we.tags() {
         // type de route
         if k == "highway" {
             match v {
-                "motorway" | "trunk" | "primary" | "secondary" | "tertiary" | "residential"
-                | "motorway_link" | "trunk_link" | "primary_link" | "secondary_link"
-                | "tertiary_link" => { routable = true; },
+                "motorway" | "trunk" | "primary" | "secondary" | "tertiary" | "unclassified" |
+                "residential" | "service" | "motorway_link" | "trunk_link" | "primary_link" |
+                "secondary_link" | "tertiary_link" | "motorway_junction" =>
+                { routable = true; },
                 _ => {},
             }
         }
@@ -31,7 +33,13 @@ fn register_tway( we: Way, tways: &mut HashMap<i64, TWay>, tnodes: &HashMap<i64,
     }
     if routable & accessible {
         let b = TWay::from( we.clone(), tnodes );
-        tways.insert( we.id(), b );
+        tways.insert( we.id(), b.clone() );
+        for n in b.refs() {
+            match tnodes.get_mut( &n )  {
+                Some(tn) => { tn.add_wayid( we.id() ); },
+                None => { println!( "nodeid {} is not in the db", n ); },
+            }
+        }
     }
 }
 
@@ -44,12 +52,12 @@ pub fn read_osm(filename: &str ) -> Graph {
     reader.for_each( |element| {
         match element {
             Element::DenseNode(dne) => { register_tnode( dne, &mut tnodes ); },
-            Element::Way(we) => { register_tway( we, &mut tways, &tnodes ); },
+            Element::Way(we) => { register_tway( we, &mut tways, &mut tnodes ); },
             _ => {},
         }
     } ). unwrap();
     let mut g = Graph::new( filename.to_string(), tnodes, tways);
-    g.init();
+    g.clean();
     g
 }
 

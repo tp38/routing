@@ -1,7 +1,11 @@
 use std::io::{self,Write};
+use std::fs::File;
 use std::collections::HashMap;
 
 use ansi_term::Colour;
+use gpx::{Gpx,GpxVersion,Metadata,Track,TrackSegment, Waypoint,write};
+use geo_types::{Point, Rect, coord};
+
 
 use crate::cli::get_input_filename;
 use crate::graphe::reader::read_osm;
@@ -77,21 +81,107 @@ pub fn main() {
                         // nearest 48.40672 -2.81433 --> Maryse (4779385124 : 48.4067937 , -2.8145653 )
                         // nearest 48.41119 -2.81940 --> Pharmacie Plaintel (7194631845 : 48.411183 , -2.8197704 )
                         // nearest 48.34743 -2.75695 --> Parmacie Ploeuc (10048845537 : 48.3473733 , -2.7570492 )
+                        // nearest 48.51973 -2.78808 --> Dr Smau ( 2000599137 : 48.5197604 , -2.7879812000000004 )
+                        // nearest 48.49618 -2.68939 --> Denis Rebours ( 2971599465 : 48.496328000000005 , -2.6892531)
                         let ( id, dist ) = nearest_node( input[1].parse::<f64>().unwrap(), input[2].parse::<f64>().unwrap(), &g.tnodes );
                         let distance = format!( "{:.2}", dist );
                         println!( "le point {} est le plus proche à {} m", Colour::Blue.paint( id.to_string() ), Colour::Green.paint( distance ) );
                     },
                     "route" => {
-                        // route 10748130360 4779385124 : cuisine-maryse => 360m (361m osm)
-                        // route 10748130358 4779385124 : garage-maryse => 82m (83m osm)
-                        // route 10748130358 7194631845 : garage-pharmacie Plaintel => 679m (679m osm)
-                        // route 10748130358 10048845537 : garage-pharmacie ploeuc => 8990m (9km osm)
-                        // route 10748130358 2345943396 : garage-Pascal&Nathalie => 10523m (9km osm) ???
-                        match shortest_path( &g.get_directed(), input[1].parse::<i64>().unwrap(), input[2].parse::<i64>().unwrap() ) {
-                            Some(l) => { println!( "le plus court chemin est de {} m", Colour::Green.paint( format!("{:.2}", l) ) ); },
+                        // route time 10748130360 4779385124 : cuisine-maryse => 359.85m (361m osm)
+                        // route distance 10748130358 4779385124 : garage-maryse => 82.37m (83m osm)
+                        // route time 10748130358 7194631845 : garage-pharmacie Plaintel => 678.56m (679m osm)
+                        // route distance 10748130358 10048845537 : garage-pharmacie ploeuc => 8989.94m (9km osm)
+                        // route time 10748130358 2345943396 : garage-Pascal&Nathalie => 10522.86m (9km osm) ???
+                        // route distance 10748130358 2000599137 : garage-Dr_Smau => 15228.37m (16km osm)
+                        // route time 10748130358 2971599465 : garage-Denis_Rebours => 17313.70m (18km osm)
+                        match shortest_path( input[1], &g.get_directed(), input[2].parse::<i64>().unwrap(), input[3].parse::<i64>().unwrap() ) {
+                            Some(bt) => {
+                                for (k, v) in bt.iter() {
+                                    println!( "{} : ", Colour::Yellow.paint( format!( "{} m", (*k as f64 / 100.0) ) ) );
+                                    print_elts( &g.tnodes, &vec![*v] );
+                                    // affichage des way id et des noms de rue
+                                    match g.tnodes.get( v ) {
+                                        Some(n) => {
+                                            for id in n.ways() {
+                                                match g.tways.get( &id ) {
+                                                    Some(w) => {
+                                                        for (t,val) in w.tags() {
+                                                            if ( t == "name" ) | ( t == "ref" ) {
+                                                                println!( "\t{} : {}", id, val );
+                                                                break;
+                                                            }
+                                                        }
+                                                    },
+                                                    None => {
+                                                        println!( "way id {} must be in db", id );
+                                                    },
+                                                }
+                                            }
+                                        },
+                                        None => {
+                                            println!( "node id {} must be in db", v );
+                                        }
+                                    }
+                                    // fin affichage
+                                }
+                            },
                             None => { println!( "impossible  de trouver un chemin"); },
                         }
+                    }
+                    "gpx" => {
+                        // gpx distance 10748130360 4779385124 : cuisine-maryse => 359.85m (361m osm)
+                        // gpx time 10748130358 4779385124 : garage-maryse => 82.37m (83m osm)
+                        // gpx distance 10748130358 7194631845 : garage-pharmacie Plaintel => 678.56m (679m osm)
+                        // gpx time 10748130358 10048845537 : garage-pharmacie ploeuc => 8989.94m (9km osm)
+                        // gpx distance 10748130358 2345943396 : garage-Pascal&Nathalie => 10522.86m (9km osm) ???
+                        // gpx time 10748130358 2000599137 : garage-Dr_Smau => 15228.37m (16km osm)
+                        // gpx distance 10748130358 2971599465 : garage-Denis_Rebours => 17313.70m (18km osm)
+                        match shortest_path( input[1], &g.get_directed(), input[2].parse::<i64>().unwrap(), input[3].parse::<i64>().unwrap() ) {
+                            Some(bt) => {
+                                let mut data : Gpx = Default::default();
+                                data.version = GpxVersion::Gpx11;
 
+                                let mut trkseg: TrackSegment = TrackSegment::new();
+                                let mut track: Track = Track::new();
+
+                                let mut lat_min: f64 = 95.0;
+                                let mut lat_max: f64 = -95.0;
+                                let mut lon_min: f64 = 180.0;
+                                let mut lon_max: f64 = -180.0;
+
+                                for (_k, v) in bt.iter() {
+                                    match &g.tnodes.get(&v) {
+                                        Some(n) => {
+                                            let lat = n.lat();
+                                            let lon = n.lon();
+
+                                            if lat < lat_min { lat_min = lat; }
+                                            if lat > lat_max { lat_max = lat; }
+                                            if lon < lon_min { lon_min = lon; }
+                                            if lon > lon_max { lon_max = lon; }
+                                            let pt = Waypoint::new( Point::new( lon, lat ) );
+                                            trkseg.points.push( pt );
+                                        },
+                                        None => {
+                                            println!("node id {} must be in db", v );
+                                        },
+                                    }
+                                }
+                                let mut meta: Metadata = Default::default();
+                                let rect = Rect::new(
+                                    coord! { x: lon_min, y: lat_min},
+                                    coord! { x: lon_max, y: lat_max},
+                                );
+                                meta.bounds = Some( rect );
+                                data.metadata = Some( meta );
+                                let f = File::create("./data/trace.gpx").expect("Unable to create file");
+                                track.segments.push( trkseg );
+                                data.tracks.push( track );
+                                write(&data, f).unwrap();
+                            },
+                            None => { println!( "impossible  de trouver un chemin"); },
+                        }
                     }
                     &_ => {
                         println!( "{} : {}", input[0], Colour::Red.paint("Commande inconnue") );
