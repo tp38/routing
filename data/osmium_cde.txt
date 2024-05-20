@@ -1,0 +1,12 @@
+osmium tags-filter Bretagne.osm.pbf w/highway=motorway,trunk,primary,secondary,tertiary,residential,motorway_link,trunk_link,primary_link,secondary_link,tertiary_link --overwrite -o routable.osm.pbf
+
+osmium fileinfo -e routable.osm.pbf
+=> OK
+
+osmium tags-filter routable.osm.pbf w/access --overwrite -o  routable_ways_with_access.osm.pbf
+
+osmium fileinfo -e routable_ways_with_access.osm.pbf
+
+osmium tags-filter routable_ways_with_access.osm.pbf w/access!=yes --overwrite -o routable_ways_with_access_not_yes.osm.pbf
+
+osmium fileinfo -e routable_ways_with_access_not_yes.osm.pbf
