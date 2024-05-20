@@ -2,3 +2,5 @@
 target
 notes
 data/*.osm.pbf
+data/*.gpx
+Cargo.lock
