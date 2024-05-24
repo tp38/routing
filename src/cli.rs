@@ -6,16 +6,16 @@ use std::path::PathBuf;
 #[derive(Parser)]
 #[command(name = "route")]
 #[command(author = "Thierry P. <thierry.probst@free.fr>")]
-#[command(version = "1.0.0")]
+#[command(version = "1.1.0")]
 #[command(about = "Some things for routing", long_about = None)]
 #[command(help_template = "{author-with-newline} {about-section} \nVersion: {version} \n {usage-heading} {usage} \n\n {all-args} {tab}")]
 #[command(propagate_version = true)]
 pub struct Cli {
-    /// Optional file name to operate on. default is "Bretagne"
+    /// Optional file name to operate on. default is "St_Brieuc-Loudéac"
     #[arg(short,long)]
     pub filename: Option<PathBuf>,
 
-    /// Optional input file type in ["osm"]. default is "osm"
+    /// Optional input file type in ["osm", "osm.pbf"]. default is "osm.pbf"
     #[arg(short,long)]
     pub itype: Option<String>,
 }

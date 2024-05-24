@@ -88,13 +88,13 @@ pub fn main() {
                         println!( "le point {} est le plus proche à {} m", Colour::Blue.paint( id.to_string() ), Colour::Green.paint( distance ) );
                     },
                     "route" => {
-                        // route time 10748130360 4779385124 : cuisine-maryse => 359.85m (361m osm)
+                        // route distance 10748130360 4779385124 : cuisine-maryse => 359.85m (361m osm)
                         // route distance 10748130358 4779385124 : garage-maryse => 82.37m (83m osm)
-                        // route time 10748130358 7194631845 : garage-pharmacie Plaintel => 678.56m (679m osm)
+                        // route distance 10748130358 7194631845 : garage-pharmacie Plaintel => 678.56m (679m osm)
                         // route distance 10748130358 10048845537 : garage-pharmacie ploeuc => 8989.94m (9km osm)
-                        // route time 10748130358 2345943396 : garage-Pascal&Nathalie => 10522.86m (9km osm) ???
+                        // route distance 10748130358 2345943396 : garage-Pascal&Nathalie => 10522.86m (9km osm) ???
                         // route distance 10748130358 2000599137 : garage-Dr_Smau => 15228.37m (16km osm)
-                        // route time 10748130358 2971599465 : garage-Denis_Rebours => 17313.70m (18km osm)
+                        // route distance 10748130358 2971599465 : garage-Denis_Rebours => 17313.70m (18km osm)
                         match shortest_path( input[1], &g.get_directed(), input[2].parse::<i64>().unwrap(), input[3].parse::<i64>().unwrap() ) {
                             Some(bt) => {
                                 for (k, v) in bt.iter() {
@@ -131,11 +131,11 @@ pub fn main() {
                     }
                     "gpx" => {
                         // gpx distance 10748130360 4779385124 : cuisine-maryse => 359.85m (361m osm)
-                        // gpx time 10748130358 4779385124 : garage-maryse => 82.37m (83m osm)
+                        // gpx distance 10748130358 4779385124 : garage-maryse => 82.37m (83m osm)
                         // gpx distance 10748130358 7194631845 : garage-pharmacie Plaintel => 678.56m (679m osm)
-                        // gpx time 10748130358 10048845537 : garage-pharmacie ploeuc => 8989.94m (9km osm)
+                        // gpx distance 10748130358 10048845537 : garage-pharmacie ploeuc => 8989.94m (9km osm)
                         // gpx distance 10748130358 2345943396 : garage-Pascal&Nathalie => 10522.86m (9km osm) ???
-                        // gpx time 10748130358 2000599137 : garage-Dr_Smau => 15228.37m (16km osm)
+                        // gpx distance 10748130358 2000599137 : garage-Dr_Smau => 15228.37m (16km osm)
                         // gpx distance 10748130358 2971599465 : garage-Denis_Rebours => 17313.70m (18km osm)
                         match shortest_path( input[1], &g.get_directed(), input[2].parse::<i64>().unwrap(), input[3].parse::<i64>().unwrap() ) {
                             Some(bt) => {
